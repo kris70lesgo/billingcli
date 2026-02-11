@@ -16,17 +16,20 @@ jobs:
       - name: Run Postman Collection
         uses: postmanlabs/postman-cli-action@v1
         with:
+          api-key: ${{ secrets.POSTMAN_API_KEY }}
           command: >
             collection run 47444924-58f303b4-cfcc-4ec8-924f-1c9199b93323
             -e 47444924-8df8dffd-8f04-4048-b622-dfff49824fa6
             --env-var baseUrl=https://155a5c81-f51c-4f56-86f3-fd3cb068e2ee.mock.pstmn.io
             --env-var postmanApiKey=${{ secrets.POSTMAN_API_KEY }}
             --reporters cli,json,junit
-        env:
-          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+            --reporter-json-export results.json
+            --reporter-junit-export results.xml
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         with:
           name: postman-results
-          path: artifacts/
+          path: |
+            results.json
+            results.xml
