@@ -1,0 +1,78 @@
+name: Backend Integration Tests
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: nimbus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build
+
+      - name: Start backend
+        run: |
+          npm start &
+          echo $! > backend.pid
+
+      - name: Wait for backend health
+        run: |
+          echo "Waiting for backend..."
+          for i in {1..20}; do
+            curl -sf http://localhost:3000/health && exit 0
+            sleep 2
+          done
+          echo "Backend did not start in time"
+          exit 1
+
+      - name: Run Postman collection (REAL backend)
+        uses: postmanlabs/postman-cli-action@v1
+        with:
+          command: >
+            collection run 47444924-58f303b4-cfcc-4ec8-924f-1c9199b93323
+            -e 47444924-8df8dffd-8f04-4048-b622-dfff49824fa6
+            --env-var baseUrl=http://localhost:3000
+            --env-var IS_MOCK=false
+            --reporters cli,json,junit
+            --reporter-json-export results.json
+            --reporter-junit-export results.xml
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-postman-results
+          path: |
+            results.json
+            results.xml
